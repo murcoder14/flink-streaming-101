@@ -6,7 +6,6 @@ import org.apache.flink.util.InstantiationUtil;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class RegionLengthOfStaySamplerTest {
@@ -40,13 +39,13 @@ class RegionLengthOfStaySamplerTest {
     }
 
     @Test
-    void sampleMeanIsCloseToTheConfiguredMean() {
-        double expected = RegionLengthOfStaySampler.SLOW_REGION_MEAN_LOS.toMillis();
+    void sampleMeanIsCloseToTheMidpointOfTheRange() {
+        double expected = (RegionLengthOfStaySampler.SLOW_MIN_LOS.toMillis() + RegionLengthOfStaySampler.SLOW_MAX_LOS.toMillis()) / 2.0;
         assertEquals(expected, sampleMean("S"), expected * 0.05);
     }
 
     @Test
-    void everyValueIsWithinTheClampBounds() {
+    void everyValueIsWithinItsConfiguredRange() {
         for (String region : new String[] {"NE", "MW", "W", "S", "unknown", null}) {
             RegionLengthOfStaySampler.Profile profile = sampler.profileFor(region);
             for (int i = 0; i < SAMPLES; i++) {
@@ -54,14 +53,6 @@ class RegionLengthOfStaySamplerTest {
                 assertTrue(los >= profile.minMillis() && los <= profile.maxMillis(), region + ": " + los);
             }
         }
-    }
-
-    @Test
-    void losScaleShrinksEveryMean() {
-        RegionLengthOfStaySampler scaled = RegionLengthOfStaySampler.defaults(0.1);
-        assertEquals(RegionLengthOfStaySampler.SLOW_REGION_MEAN_LOS.toMillis() / 10, scaled.profileFor("S").meanMillis());
-        assertEquals(RegionLengthOfStaySampler.DEFAULT_MEAN_LOS.toMillis() / 10, scaled.profileFor("NE").meanMillis());
-        assertThrows(IllegalArgumentException.class, () -> RegionLengthOfStaySampler.defaults(0));
     }
 
     private double sampleMean(String region) {

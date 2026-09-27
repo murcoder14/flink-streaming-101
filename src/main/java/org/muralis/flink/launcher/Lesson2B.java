@@ -35,12 +35,8 @@ import org.muralis.flink.data.source.hospital.RegionLengthOfStaySampler;
  *   ./run.sh 2B
  * </pre>
  *
- * <p>At the defaults, region S takes about 55 minutes to reach HIGH. To speed the simulation up
- * without changing any steady-state occupancy, multiply the admission rate by k and the length of
- * stay by 1/k, e.g. (HIGH after about 5.5 minutes, FULL after about 7):
- * <pre>
- *   ADMISSION_RATE_PER_SECOND=20 LOS_SCALE=0.1 ./run.sh 2B
- * </pre>
+ * <p>At the defaults, region S takes about 55 minutes to reach HIGH. To see it sooner, shorten the
+ * length-of-stay ranges in {@link RegionLengthOfStaySampler} directly.
  *
  * <p>Note: {@code print()} is not a transactional sink, so after a restore from a checkpoint some
  * alerts can be printed twice. The state itself (occupancy, pending discharges) is exactly-once.
@@ -55,9 +51,7 @@ public class Lesson2B {
         env.enableCheckpointing(CHECKPOINT_INTERVAL_MS);
 
         double admissionsPerSecond = resolveDouble("ADMISSION_RATE_PER_SECOND", PatientAdmissionSource.DEFAULT_RATE_PER_SECOND);
-        double losScale = resolveDouble("LOS_SCALE", 1.0);
-        System.out.printf("Starting Hospital Bed Occupancy Monitor at %.1f admissions/sec with length-of-stay scale %.3f...%n",
-                admissionsPerSecond, losScale);
+        System.out.printf("Starting Hospital Bed Occupancy Monitor at %.1f admissions/sec...%n", admissionsPerSecond);
 
         // 1. Simulated patient admissions across 4 regions, with event-time timestamps (admitTime).
         DataStream<AdmitEvent> admissionsStream = PatientAdmissionSource.admissions(env, admissionsPerSecond);
@@ -65,7 +59,7 @@ public class Lesson2B {
         // 2. Schedule every admitted patient's discharge. Admissions pass through on the main
         //    output; discharges come out on a side output when their event-time timer fires.
         SingleOutputStreamOperator<AdmitEvent> admits = HospitalAdmissionAnalytics.attachPatientLifecycleSimulator(
-                admissionsStream, RegionLengthOfStaySampler.defaults(losScale));
+                admissionsStream, RegionLengthOfStaySampler.defaults());
         DataStream<DischargeEvent> discharges = admits.getSideOutput(PatientLifecycleSimulator.DISCHARGE_TAG);
 
         // 3. Combine both streams per hospital into live bed occupancy, alerting on every status change.

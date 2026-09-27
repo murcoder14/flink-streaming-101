@@ -261,7 +261,7 @@ distribution described above, not with the rate limiter.
    → `.keyBy(AdmitEvent::getHospitalID, DischargeEvent::getHospitalID)` →
    `HospitalBedOccupancyMonitor` (`uid("bed-occupancy-monitor")`) → `print("BED-OCCUPANCY")`.
    - `env.enableCheckpointing(10_000)` (see "Operational best practices").
-   - Environment overrides: `ADMISSION_RATE_PER_SECOND`, `LOS_SCALE`
+   - Environment overrides: `ADMISSION_RATE_PER_SECOND`
      (see "Sizing the simulation").
    - Add a `2B` case to `run.sh` / `docker-run.sh`.
 
@@ -278,7 +278,7 @@ distribution described above, not with the rate limiter.
      This proves that timers and state survive failover.
 
 9. **`RegionLengthOfStaySamplerTest`** (new): same patient → same LOS;
-   region S mean > other regions; every value is within the clamp bounds.
+   region S mean > other regions; every value is within its configured range.
 
 10. **`HospitalBedOccupancyMonitorTest`** (new, no mocks), using
     `forKeyedCoProcessFunction`: `NORMAL → HIGH → FULL → HIGH → NORMAL`
@@ -332,17 +332,25 @@ tests `PatientLifecycleSimulatorTest`, `RegionLengthOfStaySamplerTest` and
 `HospitalBedOccupancyMonitorTest` (the POJO guard lives in the simulator test).
 `FixedLengthOfStaySampler` is test-only. `Lesson2A`, `HospitalCapacityMonitor`,
 `CapacityAlert` and `PatientAdmissionSource` are unchanged. `run.sh` already
-accepted `2B`; `docker-run.sh` now forwards `ADMISSION_RATE_PER_SECOND` and
-`LOS_SCALE` to the Flink client.
+accepted `2B`; `docker-run.sh` forwards `ADMISSION_RATE_PER_SECOND` to the
+Flink client.
 
 Implementation notes:
-- The LOS profile is exponential, clamped to `[0.1 × mean, 5 × mean]`. The seed
-  is `patientID.hashCode()`, which the JLS specifies, so it's the same on every
-  JVM. Unknown or `null` regions fall back to the 10-minute profile.
+- **(Rev 3, 2026-09-27) Simplified.** The exponential distribution, the
+  mean/clamp-fraction math, and the `LOS_SCALE` speed-up knob were all removed
+  as incidental complexity that didn't serve the lesson's goal (learning
+  Flink's timer/state semantics, not probability math). `RegionLengthOfStaySampler`
+  now samples uniformly from a plain `[min, max]` `Duration` range per region —
+  `NORMAL_MIN_LOS`/`NORMAL_MAX_LOS` (5-15 min) and `SLOW_MIN_LOS`/`SLOW_MAX_LOS`
+  (20-60 min) — chosen so the means (10 min / 40 min) match the Little's-law
+  sizing above unchanged. There is no scale factor any more; to change the pace
+  of a demo, edit those `Duration` constants directly. The seed is still
+  `patientID.hashCode()`, which the JLS specifies, so it's the same on every
+  JVM. Unknown or `null` regions still fall back to the normal-region profile.
 - Re-admission conflict (decision 5): the forwarded duplicate admit is counted
   by the monitor, but only one discharge follows, so each conflict leaks one
   bed. That only happens after patient IDs wrap (900k admissions). Watch the
   `duplicateAdmissions` counter.
-- Smoke run: `ADMISSION_RATE_PER_SECOND=200 LOS_SCALE=0.01 ./run.sh 2B` took
-  HS1/HS2 to `HIGH` and then `FULL` within about 40 s. NE, MW and W never
-  alerted.
+- Smoke run (pre-Rev-3, with the since-removed `LOS_SCALE`):
+  `ADMISSION_RATE_PER_SECOND=200 LOS_SCALE=0.01 ./run.sh 2B` took HS1/HS2 to
+  `HIGH` and then `FULL` within about 40 s. NE, MW and W never alerted.

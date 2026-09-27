@@ -10,7 +10,7 @@
 # Optional (environment variables):
 #   SENSOR_RATE=5000 ./docker-run.sh 3     readings per second (default: the lesson's own 1-2/s, which is nearly idle)
 #   FRESH=1 ./docker-run.sh 3              restart the TaskManager first, so heap/GC graphs start from a clean baseline
-#   ADMISSION_RATE_PER_SECOND=20 LOS_SCALE=0.1 ./docker-run.sh 2B   speed up the bed-occupancy simulation 10x
+#   ADMISSION_RATE_PER_SECOND=20 ./docker-run.sh 2B                increase the bed-occupancy simulation's admission load
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -71,10 +71,10 @@ elif [[ -n "${FRESH:-}" ]]; then
 fi
 
 cancel_running
-# SENSOR_RATE (SensorSource) and ADMISSION_RATE_PER_SECOND / LOS_SCALE (Lesson2B) are read inside the flink client
+# SENSOR_RATE (SensorSource) and ADMISSION_RATE_PER_SECOND (Lesson2B) are read inside the flink client
 # process, hence -e here
 docker compose exec -T -e SENSOR_RATE="${SENSOR_RATE:-}" \
-  -e ADMISSION_RATE_PER_SECOND="${ADMISSION_RATE_PER_SECOND:-}" -e LOS_SCALE="${LOS_SCALE:-}" \
+  -e ADMISSION_RATE_PER_SECOND="${ADMISSION_RATE_PER_SECOND:-}" \
   jobmanager flink run -d \
   -c "org.muralis.flink.launcher.${lesson_class}" "/opt/jobs/$JAR" 2>&1 | grep -v "^WARNING"
 

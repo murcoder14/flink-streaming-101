@@ -321,5 +321,28 @@ distribution described above, not with the rate limiter.
 ## Status
 
 Planning complete and agreed (Rev 1). Rev 2 (2026-09-27) applies the Flink
-best-practices review above. **No code has been written yet**; implementation
-begins only once explicitly requested.
+best-practices review above.
+
+**Implemented (2026-09-27).** All 11 planned items are in place:
+`DischargeEvent`, `BedOccupancyStatus`, `BedOccupancyAlert`,
+`LengthOfStaySampler` / `RegionLengthOfStaySampler`, `PatientLifecycleSimulator`,
+`HospitalBedOccupancyMonitor`,
+`HospitalAdmissionAnalytics.attachPatientLifecycleSimulator`, `Lesson2B`, and the
+tests `PatientLifecycleSimulatorTest`, `RegionLengthOfStaySamplerTest` and
+`HospitalBedOccupancyMonitorTest` (the POJO guard lives in the simulator test).
+`FixedLengthOfStaySampler` is test-only. `Lesson2A`, `HospitalCapacityMonitor`,
+`CapacityAlert` and `PatientAdmissionSource` are unchanged. `run.sh` already
+accepted `2B`; `docker-run.sh` now forwards `ADMISSION_RATE_PER_SECOND` and
+`LOS_SCALE` to the Flink client.
+
+Implementation notes:
+- The LOS profile is exponential, clamped to `[0.1 × mean, 5 × mean]`. The seed
+  is `patientID.hashCode()`, which the JLS specifies, so it's the same on every
+  JVM. Unknown or `null` regions fall back to the 10-minute profile.
+- Re-admission conflict (decision 5): the forwarded duplicate admit is counted
+  by the monitor, but only one discharge follows, so each conflict leaks one
+  bed. That only happens after patient IDs wrap (900k admissions). Watch the
+  `duplicateAdmissions` counter.
+- Smoke run: `ADMISSION_RATE_PER_SECOND=200 LOS_SCALE=0.01 ./run.sh 2B` took
+  HS1/HS2 to `HIGH` and then `FULL` within about 40 s. NE, MW and W never
+  alerted.

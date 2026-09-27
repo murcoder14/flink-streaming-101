@@ -1,0 +1,70 @@
+# Flink cluster in Docker for running the lessons as real Flink jobs and studying them in the Web UI.
+# Needs only Docker - no Kafka. The easiest way to use it is ./docker-run.sh <lesson number>; see the README section
+# "Studying a lesson in the Flink Web UI".
+#
+#   mvn clean package                                   # -> target/flink-basics-tutorial.jar
+#   docker compose up -d                                # Flink UI: http://localhost:8081
+#   docker compose exec jobmanager flink run -d \
+#       -c com.example.flink.basics.Lesson3State /opt/jobs/flink-basics-tutorial.jar
+#   docker compose logs -f taskmanager                  # the print() output of the lessons appears here
+#   docker compose exec jobmanager flink list           # shows the job id
+#   docker compose exec jobmanager flink cancel <jobId> # stop it before starting the next lesson
+#   docker compose down -v                              # clean up (-v also removes the checkpoint volume)
+name: flink-basics
+
+# The same cluster configuration for JobManager and TaskManager (Flink reads it from FLINK_PROPERTIES).
+x-flink-properties: &flink-properties |
+  jobmanager.rpc.address: jobmanager
+  taskmanager.numberOfTaskSlots: 4
+
+  # Web UI -> job -> click an operator -> "FlameGraph" tab is only available when this is on.
+  rest.flamegraph.enabled: true
+
+  # The lessons do not call env.enableCheckpointing(...) themselves. Flink applies this cluster-wide default instead,
+  # so every lesson is checkpointed every 10 s: Web UI -> job -> "Checkpoints" tab.
+  execution.checkpointing.interval: 10s
+  execution.checkpointing.dir: file:///opt/flink/checkpoints
+  execution.checkpointing.externalized-checkpoint-retention: RETAIN_ON_CANCELLATION
+  state.backend.type: hashmap
+
+services:
+  # The named volume is created root-owned; hand it to the unprivileged `flink` user once.
+  init-checkpoints:
+    image: flink:2.3.0-java17
+    user: root
+    restart: "no"
+    entrypoint: ["/bin/bash", "-c", "mkdir -p /opt/flink/checkpoints && chown -R flink:flink /opt/flink/checkpoints"]
+    volumes:
+      - checkpoints:/opt/flink/checkpoints
+
+  jobmanager:
+    image: flink:2.3.0-java17
+    command: jobmanager
+    ports:
+      - "8081:8081"
+    environment:
+      FLINK_PROPERTIES: *flink-properties
+    volumes:
+      - ./target:/opt/jobs:ro                      # the directory with the built jar
+      - checkpoints:/opt/flink/checkpoints
+    depends_on:
+      init-checkpoints:
+        condition: service_completed_successfully
+
+  taskmanager:
+    image: flink:2.3.0-java17
+    command: taskmanager
+    environment:
+      FLINK_PROPERTIES: *flink-properties
+    logging:                       # the lessons print to stdout; cap the Docker log so a high SENSOR_RATE cannot fill the disk
+      driver: json-file
+      options:
+        max-size: "1m"
+        max-file: "2"
+    volumes:
+      - checkpoints:/opt/flink/checkpoints
+    depends_on:
+      - jobmanager
+
+volumes:
+  checkpoints:

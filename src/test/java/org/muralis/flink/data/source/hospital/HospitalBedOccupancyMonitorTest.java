@@ -24,8 +24,8 @@ import static org.muralis.flink.data.model.BedOccupancyStatus.NORMAL;
  * Tests {@link HospitalBedOccupancyMonitor} using Flink's real (non-mocked)
  * {@link ProcessFunctionTestHarnesses}.
  *
- * <p>Region "S" hospitals have 500 beds, so the hysteresis boundaries are:
- * HIGH at 450, back to NORMAL below 425, FULL at 500, back to HIGH below 475.
+ * <p>Region "S" hospitals have 100 beds, so the hysteresis boundaries are:
+ * HIGH at 90, back to NORMAL below 85, FULL at 100, back to HIGH below 95.
  */
 class HospitalBedOccupancyMonitorTest {
 
@@ -52,40 +52,40 @@ class HospitalBedOccupancyMonitorTest {
 
     @Test
     void walksThroughEveryTransitionInBothDirections() throws Exception {
-        admit(HOSPITAL_S1, 449);
+        admit(HOSPITAL_S1, 89);
         assertNoAlerts();
 
-        admit(HOSPITAL_S1, 1); // 450/500 = 90%
-        assertAlert(NORMAL, HIGH, 450);
+        admit(HOSPITAL_S1, 1); // 90/100 = 90%
+        assertAlert(NORMAL, HIGH, 90);
 
-        admit(HOSPITAL_S1, 49); // 499/500
+        admit(HOSPITAL_S1, 9); // 99/100
         assertNoAlerts();
-        admit(HOSPITAL_S1, 1); // 500/500 = 100%
-        assertAlert(HIGH, FULL, 500);
+        admit(HOSPITAL_S1, 1); // 100/100 = 100%
+        assertAlert(HIGH, FULL, 100);
 
-        discharge(HOSPITAL_S1, 25); // 475/500 = 95%: still FULL
+        discharge(HOSPITAL_S1, 5); // 95/100 = 95%: still FULL
         assertNoAlerts();
-        discharge(HOSPITAL_S1, 1); // 474/500 = 94.8%
-        assertAlert(FULL, HIGH, 474);
+        discharge(HOSPITAL_S1, 1); // 94/100 = 94%
+        assertAlert(FULL, HIGH, 94);
 
-        discharge(HOSPITAL_S1, 49); // 425/500 = 85%: still HIGH
+        discharge(HOSPITAL_S1, 9); // 85/100 = 85%: still HIGH
         assertNoAlerts();
-        discharge(HOSPITAL_S1, 1); // 424/500 = 84.8%
-        assertAlert(HIGH, NORMAL, 424);
+        discharge(HOSPITAL_S1, 1); // 84/100 = 84%
+        assertAlert(HIGH, NORMAL, 84);
     }
 
     @Test
     void doesNotReAlertWhileOscillatingInsideTheHysteresisBand() throws Exception {
-        admit(HOSPITAL_S1, 450);
-        assertAlert(NORMAL, HIGH, 450);
+        admit(HOSPITAL_S1, 90);
+        assertAlert(NORMAL, HIGH, 90);
 
-        // Bounce between 85% and 89.8%: stays HIGH, no alert storm.
-        discharge(HOSPITAL_S1, 25); // 425
+        // Bounce between 85% and 89%: stays HIGH, no alert storm.
+        discharge(HOSPITAL_S1, 5); // 85
         for (int i = 0; i < 5; i++) {
-            admit(HOSPITAL_S1, 24);     // 449
-            discharge(HOSPITAL_S1, 24); // 425
+            admit(HOSPITAL_S1, 4);    // 89
+            discharge(HOSPITAL_S1, 4); // 85
         }
-        admit(HOSPITAL_S1, 24); // 449
+        admit(HOSPITAL_S1, 4); // 89
         assertNoAlerts();
 
         // Crossing back up to 90% from HIGH is not a transition either.
@@ -95,7 +95,7 @@ class HospitalBedOccupancyMonitorTest {
 
     @Test
     void alertCarriesHospitalRegionCapacityAndEventTime() throws Exception {
-        admit(HOSPITAL_S1, 449);
+        admit(HOSPITAL_S1, 89);
         harness.processElement1(admission(HOSPITAL_S1), 42_000L);
 
         List<BedOccupancyAlert> alerts = drainAlerts();
@@ -103,7 +103,7 @@ class HospitalBedOccupancyMonitorTest {
         BedOccupancyAlert alert = alerts.get(0);
         assertEquals(HOSPITAL_S1, alert.getHospitalID());
         assertEquals("S", alert.getRegionID());
-        assertEquals(500, alert.getMaxCapacity());
+        assertEquals(100, alert.getMaxCapacity());
         assertEquals(90.0, alert.getOccupancyPercentage(), 0.001);
         assertEquals(42_000L, alert.getAlertTime());
     }
@@ -113,9 +113,9 @@ class HospitalBedOccupancyMonitorTest {
         discharge(HOSPITAL_S1, 3);
         assertNoAlerts();
 
-        // Had occupancy gone to -3, 453 admissions would be needed to reach HIGH.
-        admit(HOSPITAL_S1, 450);
-        assertAlert(NORMAL, HIGH, 450);
+        // Had occupancy gone to -3, 93 admissions would be needed to reach HIGH.
+        admit(HOSPITAL_S1, 90);
+        assertAlert(NORMAL, HIGH, 90);
     }
 
     @Test
@@ -129,8 +129,8 @@ class HospitalBedOccupancyMonitorTest {
 
     @Test
     void occupancyIsTrackedPerHospital() throws Exception {
-        admit(HOSPITAL_S1, 450);
-        admit(HOSPITAL_S2, 449);
+        admit(HOSPITAL_S1, 90);
+        admit(HOSPITAL_S2, 89);
 
         List<BedOccupancyAlert> alerts = drainAlerts();
         assertEquals(1, alerts.size());
@@ -140,7 +140,7 @@ class HospitalBedOccupancyMonitorTest {
         alerts = drainAlerts();
         assertEquals(1, alerts.size());
         assertEquals(HOSPITAL_S2, alerts.get(0).getHospitalID());
-        assertEquals(450, alerts.get(0).getOccupied());
+        assertEquals(90, alerts.get(0).getOccupied());
     }
 
     private void admit(String hospitalID, int count) throws Exception {

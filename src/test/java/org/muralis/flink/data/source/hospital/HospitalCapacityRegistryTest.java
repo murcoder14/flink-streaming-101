@@ -26,7 +26,7 @@ class HospitalCapacityRegistryTest {
         assertEquals(200, HospitalCapacityRegistry.capacityForHospital("HNE1"));
         assertEquals(170, HospitalCapacityRegistry.capacityForHospital("HMW2"));
         assertEquals(300, HospitalCapacityRegistry.capacityForHospital("HW4"));
-        assertEquals(500, HospitalCapacityRegistry.capacityForHospital("HS1"));
+        assertEquals(100, HospitalCapacityRegistry.capacityForHospital("HS1"));
     }
 
     @Test

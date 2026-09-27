@@ -35,8 +35,11 @@ import org.muralis.flink.data.source.hospital.RegionLengthOfStaySampler;
  *   ./run.sh 2B
  * </pre>
  *
- * <p>At the defaults, region S takes about 55 minutes to reach HIGH. To see it sooner, shorten the
- * length-of-stay ranges in {@link RegionLengthOfStaySampler} directly.
+ * <p>At the defaults, region S takes about 6.5 minutes to reach HIGH: its 100-bed capacity
+ * ({@link org.muralis.flink.data.source.hospital.HospitalCapacityRegistry}) is deliberately small,
+ * which is what makes it reach the alert thresholds quickly without touching admission rate or
+ * length of stay at all. To see it sooner or later, shrink or grow that capacity, or shorten or
+ * lengthen the length-of-stay ranges in {@link RegionLengthOfStaySampler}, directly.
  *
  * <p>Note: {@code print()} is not a transactional sink, so after a restore from a checkpoint some
  * alerts can be printed twice. The state itself (occupancy, pending discharges) is exactly-once.

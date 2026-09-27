@@ -157,16 +157,14 @@ At the default `R = 2/s`:
 | NE | 4 | 0.125/s | 200 | 1440 s | 600 s | 75 (38%) |
 | MW | 3 | 0.167/s | 170 | 918 s | 600 s | 100 (59%) |
 | W | 5 | 0.100/s | 300 | 2700 s | 600 s | 60 (20%) |
-| **S** | 2 | 0.250/s | 500 | 1800 s | **2400 s** | **600 (120% → FULL)** |
+| **S** | 2 | 0.250/s | 100 (Rev 4) | 360 s | **2400 s** | **600 (600% → FULL)** |
 
 With exponential LOS, occupancy approaches steady state as
 `L(t) = L∞ · (1 − e^(−t/meanLOS))`, so region S at these settings takes
-≈55 min to hit `HIGH`. That is too slow for a demo. **Scale time:**
-multiplying `R` by *k* and dividing every meanLOS by *k* keeps every
-steady-state `L` identical but gets there *k*× faster. For example, with
-`ADMISSION_RATE_PER_SECOND=20` and `LOS_SCALE=0.1`, S reaches `HIGH` in
-≈5.5 min and `FULL` in ≈7 min. Expose both as environment overrides, the same
-way `Lesson2A` uses `ADMISSION_WINDOW_SECONDS`.
+≈6.5 min to hit `HIGH` and ≈7.3 min to hit `FULL`. (At the original 500-bed
+capacity this would have taken ≈55 min — see the Rev 4 note under
+"Implementation notes" for why capacity, not admission rate or LOS, is the
+lever now used to keep the demo fast.)
 
 ## Confirmed Flink 2.3 APIs backing this design
 
@@ -347,10 +345,26 @@ Implementation notes:
   of a demo, edit those `Duration` constants directly. The seed is still
   `patientID.hashCode()`, which the JLS specifies, so it's the same on every
   JVM. Unknown or `null` regions still fall back to the normal-region profile.
+- **(Rev 4, 2026-09-27) Region S's bed capacity was shrunk from 500 to 100**
+  in `HospitalCapacityRegistry`, instead of relying on a rate/LOS speed-up
+  knob to make the demo watchable. The occupancy curve `L(t)` above doesn't
+  depend on capacity at all — only the *fraction* `L(t)/capacity` does — so a
+  smaller capacity crosses the 90%/100% alert lines with far fewer admitted
+  patients, which is reached far sooner in wall-clock time (≈6.5 min instead
+  of ≈55 min), with admission rate and length-of-stay untouched. **NE, MW and
+  W were deliberately left at 200/170/300**: uniformly shrinking every
+  region's capacity by the same factor would have pushed their steady-state
+  occupancy fractions up by that same factor too (since the raw occupied
+  count is capacity-independent), making them incorrectly cross 90% as well
+  and defeating the "only S runs out of beds" point of the lesson. To change
+  the pace of a demo further, edit `HospitalCapacityRegistry`'s region-S
+  constant directly (or the LOS ranges from Rev 3) — there is no scale-factor
+  knob for this either.
 - Re-admission conflict (decision 5): the forwarded duplicate admit is counted
   by the monitor, but only one discharge follows, so each conflict leaks one
   bed. That only happens after patient IDs wrap (900k admissions). Watch the
   `duplicateAdmissions` counter.
-- Smoke run (pre-Rev-3, with the since-removed `LOS_SCALE`):
-  `ADMISSION_RATE_PER_SECOND=200 LOS_SCALE=0.01 ./run.sh 2B` took HS1/HS2 to
-  `HIGH` and then `FULL` within about 40 s. NE, MW and W never alerted.
+- Smoke run (pre-Rev-4, with the since-removed `LOS_SCALE` and the original
+  500-bed S capacity): `ADMISSION_RATE_PER_SECOND=200 LOS_SCALE=0.01 ./run.sh
+  2B` took HS1/HS2 to `HIGH` and then `FULL` within about 40 s. NE, MW and W
+  never alerted.

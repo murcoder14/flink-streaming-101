@@ -25,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class HospitalCapacityMonitorTest {
 
-    /** Region "S" hospitals have a 500-bed max capacity; 90% of that is 450. */
+    /** Region "S" hospitals have a 100-bed max capacity; 90% of that is 90. */
     private static final String HOSPITAL_S1 = "HS1";
     private static final String REGION_S = "S";
 
@@ -59,19 +59,19 @@ class HospitalCapacityMonitorTest {
 
     @Test
     void doesNotAlertBelowNinetyPercentCapacity() throws Exception {
-        // 440 of 500 beds = 88%, below the 90% threshold.
-        processAdmissions(HOSPITAL_S1, 440, 1L);
+        // 88 of 100 beds = 88%, below the 90% threshold.
+        processAdmissions(HOSPITAL_S1, 88, 1L);
 
         assertNoAlertsRaised();
     }
 
     @Test
     void alertsExactlyOnceWhenCrossingNinetyPercentCapacity() throws Exception {
-        // 449 of 500 beds = 89.8%: still below threshold.
-        processAdmissions(HOSPITAL_S1, 449, 1L);
+        // 89 of 100 beds = 89%: still below threshold.
+        processAdmissions(HOSPITAL_S1, 89, 1L);
         assertNoAlertsRaised();
 
-        // One more admission crosses 90% (450/500 = 90.0%): alert should fire now.
+        // One more admission crosses 90% (90/100 = 90.0%): alert should fire now.
         harness.processElement(admissionFor(HOSPITAL_S1), 2L);
 
         Queue<StreamRecord<CapacityAlert>> alerts = harness.getSideOutput(HospitalCapacityMonitor.CAPACITY_ALERT_TAG);
@@ -80,8 +80,8 @@ class HospitalCapacityMonitorTest {
         CapacityAlert alert = alerts.poll().getValue();
         assertEquals(HOSPITAL_S1, alert.getHospitalID());
         assertEquals(REGION_S, alert.getRegionID());
-        assertEquals(450L, alert.getCurrentOccupancy());
-        assertEquals(500, alert.getMaxCapacity());
+        assertEquals(90L, alert.getCurrentOccupancy());
+        assertEquals(100, alert.getMaxCapacity());
         assertEquals(90.0, alert.getOccupancyPercentage(), 0.001);
 
         // Further admissions must not raise a second alert for the same hospital.

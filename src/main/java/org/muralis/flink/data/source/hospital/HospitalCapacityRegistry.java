@@ -13,7 +13,10 @@ import java.util.Map;
  *   <li>Region <b>NE</b>: 200 beds</li>
  *   <li>Region <b>MW</b>: 170 beds</li>
  *   <li>Region <b>W</b>:  300 beds</li>
- *   <li>Region <b>S</b>:  500 beds</li>
+ *   <li>Region <b>S</b>:  100 beds &mdash; deliberately small, so its steady-state occupancy
+ *       (~600% of capacity, see {@code docs/discharge_event_plan.md}) crosses the alert
+ *       thresholds in minutes of wall-clock time instead of the ~55 minutes a 500-bed hospital
+ *       would take. NE/MW/W are left alone; they're sized to never alert regardless of this</li>
  * </ul>
  */
 public final class HospitalCapacityRegistry {
@@ -29,7 +32,7 @@ public final class HospitalCapacityRegistry {
         capacities.put(PatientAdmissionGeneratorFunction.REGION_NE, 200);
         capacities.put(PatientAdmissionGeneratorFunction.REGION_MW, 170);
         capacities.put(PatientAdmissionGeneratorFunction.REGION_W, 300);
-        capacities.put(PatientAdmissionGeneratorFunction.REGION_S, 500);
+        capacities.put(PatientAdmissionGeneratorFunction.REGION_S, 100);
         REGION_MAX_BED_CAPACITY = Collections.unmodifiableMap(capacities);
 
         Map<String, String> hospitalToRegion = new HashMap<>();

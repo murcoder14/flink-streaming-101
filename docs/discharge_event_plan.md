@@ -105,12 +105,16 @@ have caused bugs, or where they went against idiomatic Flink:
    The occupancy monitor is still keyed by `hospitalID`, which is correct
    because occupancy is a per-hospital aggregate.
    *Uniqueness assumption:* `PatientAdmissionGeneratorFunction` derives IDs
-   from `index % 900000`, which is unique for the first 900k admissions
-   (≈5 days at 2/s). If an admit arrives for a key that already has a
-   pending discharge, the simulator treats it as a **re-admission conflict**:
-   it logs, increments a `duplicateAdmissions` counter and keeps the existing
-   stay (the new admission is still forwarded, so occupancy stays correct).
-   Plan for this case explicitly; don't let it overwrite state silently.
+   directly from the generator's own sequence number (`"PAT-" + index`),
+   which Flink's `DataGeneratorSource` guarantees is emitted exactly once
+   across the whole job, so a key can never receive two independent
+   admissions. **(Rev 5, 2026-09-27)** An earlier revision instead squeezed
+   that sequence number into a fixed 6-digit format via `index % 900000`,
+   which wrapped and repeated IDs after 900k admissions (≈5 days at 2/s) —
+   incidental complexity from the display format, not a real uniqueness
+   constraint. That forced a defensive "re-admission conflict" branch in the
+   simulator (log, count, keep the existing stay). Both were removed once the
+   ID was made genuinely unique; see "Implementation notes".
 
 6. **(Rev 2, new) Processing time or event time for the discharge timer?**
    **Decision: event time.** `admitTime` is already the event timestamp, and
@@ -214,17 +218,16 @@ distribution described above, not with the rate limiter.
    - Constructor takes a `LengthOfStaySampler`.
    - State: `ValueState<DischargeEvent> pendingDischarge`, with a stable
      descriptor name.
-   - `processElement`: if `pendingDischarge` is already set → re-admission
-     conflict (decision 5): log, count, keep the existing stay. Otherwise
-     compute `dischargeTs = ctx.timestamp() + los`, store the pending
-     `DischargeEvent`, and call `registerEventTimeTimer(dischargeTs)`. Always
-     forward the `AdmitEvent` unchanged on the main output.
+   - `processElement`: compute `dischargeTs = ctx.timestamp() + los`, store
+     the pending `DischargeEvent`, and call
+     `registerEventTimeTimer(dischargeTs)`. Always forward the `AdmitEvent`
+     unchanged on the main output. (Rev 5: no re-admission conflict branch —
+     see decision 5.)
    - `onTimer`: read the pending event, `ctx.output(DISCHARGE_TAG, event)`,
      then **`pendingDischarge.clear()`**. Timer-driven cleanup means no state
      TTL is needed. Don't add TTL as well: TTL doesn't delete timers, so the
      two would disagree.
-   - Metrics (in `open()`): counters `dischargesEmitted`,
-     `duplicateAdmissions`.
+   - Metrics (in `open()`): counter `dischargesEmitted`.
 
 4. **`HospitalAdmissionAnalytics.attachPatientLifecycleSimulator(stream, sampler)`**:
    wires `stream.keyBy(e -> e.getPatient().getPatientID()).process(new
@@ -306,9 +309,8 @@ distribution described above, not with the rate limiter.
 - **Serialization:** all records and state are Flink POJOs or enums. Keep
   functions' non-serializable fields `transient` and initialise them in
   `open(OpenContext)`.
-- **Observability:** counters `dischargesEmitted`, `duplicateAdmissions`,
-  `occupancyUnderflows`, visible in the Flink UI. Underflows and duplicates
-  should stay at 0 in a healthy run.
+- **Observability:** counters `dischargesEmitted`, `occupancyUnderflows`,
+  visible in the Flink UI. Underflows should stay at 0 in a healthy run.
 - **Keep the synchronous state API.** Flink 2.x's async state (State V2 /
   ForSt) is deliberately out of scope for this lesson, to keep the timer/state
   semantics easy to follow.
@@ -360,10 +362,21 @@ Implementation notes:
   the pace of a demo further, edit `HospitalCapacityRegistry`'s region-S
   constant directly (or the LOS ranges from Rev 3) — there is no scale-factor
   knob for this either.
-- Re-admission conflict (decision 5): the forwarded duplicate admit is counted
-  by the monitor, but only one discharge follows, so each conflict leaks one
-  bed. That only happens after patient IDs wrap (900k admissions). Watch the
-  `duplicateAdmissions` counter.
+- **(Rev 5, 2026-09-27) Removed the ID-wraparound / re-admission-conflict
+  handling entirely.** `PatientAdmissionGeneratorFunction.generatePatient`
+  used to squeeze Flink's own unique, ever-increasing sequence number into a
+  fixed 6-digit format (`"PAT-%06d"` of `index % 900000`), which wrapped and
+  repeated IDs after 900k admissions (≈5 days at 2/s) — a self-inflicted
+  collision, not a real constraint. `patientID` is now just `"PAT-" + index`
+  directly: unbounded, and guaranteed unique across the whole job by Flink's
+  `DataGeneratorSource` contract. With collisions no longer possible,
+  `PatientLifecycleSimulator.processElement` no longer has a "pending
+  discharge already set" branch, and the `duplicateAdmissions` counter and
+  its log warning are gone. If this function is ever reused with a
+  non-unique key source, a second admission for an in-flight key will now
+  silently overwrite the pending discharge and orphan its timer instead of
+  being caught and logged — acceptable here because the uniqueness guarantee
+  comes from Flink itself, not from an assumption about input data.
 - Smoke run (pre-Rev-4, with the since-removed `LOS_SCALE` and the original
   500-bed S capacity): `ADMISSION_RATE_PER_SECOND=200 LOS_SCALE=0.01 ./run.sh
   2B` took HS1/HS2 to `HIGH` and then `FULL` within about 40 s. NE, MW and W

@@ -9,8 +9,6 @@ import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
 import org.muralis.flink.data.model.AdmitEvent;
 import org.muralis.flink.data.model.DischargeEvent;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Simulates each admitted patient's discharge. For every admission it schedules an
@@ -32,8 +30,6 @@ import org.slf4j.LoggerFactory;
  */
 public class PatientLifecycleSimulator extends KeyedProcessFunction<String, AdmitEvent, AdmitEvent> {
 
-    private static final Logger LOG = LoggerFactory.getLogger(PatientLifecycleSimulator.class);
-
     /** Side output carrying discharges. Read via {@code SingleOutputStreamOperator.getSideOutput(...)}. */
     public static final OutputTag<DischargeEvent> DISCHARGE_TAG = new OutputTag<DischargeEvent>("discharges") {};
 
@@ -44,7 +40,6 @@ public class PatientLifecycleSimulator extends KeyedProcessFunction<String, Admi
 
     private transient ValueState<DischargeEvent> pendingDischarge;
     private transient Counter dischargesEmitted;
-    private transient Counter duplicateAdmissions;
 
     public PatientLifecycleSimulator(LengthOfStaySampler lengthOfStaySampler) {
         this.lengthOfStaySampler = lengthOfStaySampler;
@@ -54,30 +49,22 @@ public class PatientLifecycleSimulator extends KeyedProcessFunction<String, Admi
     public void open(OpenContext openContext) throws Exception {
         pendingDischarge = getRuntimeContext().getState(new ValueStateDescriptor<>(PENDING_DISCHARGE_STATE, DischargeEvent.class));
         dischargesEmitted = getRuntimeContext().getMetricGroup().counter("dischargesEmitted");
-        duplicateAdmissions = getRuntimeContext().getMetricGroup().counter("duplicateAdmissions");
     }
 
     @Override
     public void processElement(AdmitEvent admitEvent, Context ctx, Collector<AdmitEvent> out) throws Exception {
-        DischargeEvent existing = pendingDischarge.value();
-        if (existing != null) {
-            // Re-admission of a patient who is still in hospital (patient IDs wrap after 900k
-            // admissions). Keep the existing stay rather than silently overwriting it.
-            duplicateAdmissions.inc();
-            LOG.warn("Patient {} admitted to {} while still admitted to {} until {}; keeping the existing stay",
-                    ctx.getCurrentKey(), admitEvent.getHospitalID(), existing.getHospitalID(), existing.getDischargeTime());
-        } else {
-            Long admitTimestamp = ctx.timestamp();
-            if (admitTimestamp == null) {
-                throw new IllegalStateException(
-                        "PatientLifecycleSimulator needs event-time timestamps; assign a WatermarkStrategy on the source");
-            }
-            String patientID = ctx.getCurrentKey();
-            long dischargeTimestamp = admitTimestamp + lengthOfStaySampler.lengthOfStayMillis(patientID, admitEvent.getRegionID());
-
-            pendingDischarge.update(new DischargeEvent(patientID, admitEvent.getHospitalID(), admitEvent.getAdmitTime(), dischargeTimestamp));
-            ctx.timerService().registerEventTimeTimer(dischargeTimestamp);
+        Long admitTimestamp = ctx.timestamp();
+        if (admitTimestamp == null) {
+            throw new IllegalStateException(
+                    "PatientLifecycleSimulator needs event-time timestamps; assign a WatermarkStrategy on the source");
         }
+        // patientID (the key) is unique per admission (see PatientAdmissionGeneratorFunction), so
+        // there is always at most one pending discharge per key: no re-admission conflict to guard.
+        String patientID = ctx.getCurrentKey();
+        long dischargeTimestamp = admitTimestamp + lengthOfStaySampler.lengthOfStayMillis(patientID, admitEvent.getRegionID());
+
+        pendingDischarge.update(new DischargeEvent(patientID, admitEvent.getHospitalID(), admitEvent.getAdmitTime(), dischargeTimestamp));
+        ctx.timerService().registerEventTimeTimer(dischargeTimestamp);
 
         out.collect(admitEvent);
     }

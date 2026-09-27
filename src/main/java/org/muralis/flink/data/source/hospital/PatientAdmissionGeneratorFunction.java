@@ -89,10 +89,14 @@ public class PatientAdmissionGeneratorFunction implements GeneratorFunction<Long
 
     /**
      * Generates a realistic patient profile with uneven gender and age distributions.
+     *
+     * <p>{@code patientID} is derived directly from the generator's own sequence number, which
+     * Flink's {@code DataGeneratorSource} guarantees is emitted exactly once across the whole job
+     * (all parallel subtasks combined), so every patient gets a genuinely unique ID with no
+     * collision handling needed downstream.
      */
     public Patient generatePatient(Random random, Long index) {
-        long idNum = index != null ? (100000L + (index % 900000L)) : (100000L + random.nextInt(900000));
-        String patientID = String.format("PAT-%06d", idNum);
+        String patientID = "PAT-" + index;
         String gender = generateUnevenGender(random);
         int age = generateUnevenAge(random);
 

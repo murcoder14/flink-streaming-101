@@ -96,23 +96,6 @@ class PatientLifecycleSimulatorTest {
     }
 
     @Test
-    void reAdmissionWhileStillAdmittedKeepsTheExistingStay() throws Exception {
-        harness.processElement(admission("PAT-1", HOSPITAL_S1, ADMIT_TS), ADMIT_TS);
-        AdmitEvent readmission = admission("PAT-1", "HNE1", ADMIT_TS + 500);
-        harness.processElement(readmission, ADMIT_TS + 500);
-
-        assertEquals(1, harness.numEventTimeTimers());
-        assertTrue(harness.extractOutputValues().contains(readmission), "the re-admission is still forwarded");
-
-        harness.processWatermark(ADMIT_TS + 500 + LOS);
-        Queue<StreamRecord<DischargeEvent>> discharges = harness.getSideOutput(PatientLifecycleSimulator.DISCHARGE_TAG);
-        assertEquals(1, discharges.size());
-        DischargeEvent discharge = discharges.poll().getValue();
-        assertEquals(HOSPITAL_S1, discharge.getHospitalID());
-        assertEquals(ADMIT_TS + LOS, discharge.getDischargeTime());
-    }
-
-    @Test
     void pendingDischargesSurviveSnapshotAndRestore() throws Exception {
         harness.processElement(admission("PAT-1", HOSPITAL_S1, ADMIT_TS), ADMIT_TS);
         OperatorSubtaskState snapshot = harness.snapshot(1L, ADMIT_TS);

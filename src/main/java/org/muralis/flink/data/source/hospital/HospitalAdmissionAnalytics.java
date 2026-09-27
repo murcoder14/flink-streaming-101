@@ -122,6 +122,27 @@ public final class HospitalAdmissionAnalytics {
                 .process(new HospitalCapacityMonitor());
     }
 
+    /**
+     * Attaches a {@link PatientLifecycleSimulator} to the stream, keyed by {@code patientID}.
+     * Every input event is forwarded unchanged on the returned stream's main output; each
+     * patient's discharge (after a length of stay drawn from {@code lengthOfStaySampler}) is
+     * published on {@link PatientLifecycleSimulator#DISCHARGE_TAG} and can be retrieved via
+     * {@code SingleOutputStreamOperator.getSideOutput(PatientLifecycleSimulator.DISCHARGE_TAG)}.
+     *
+     * <p>The stream must carry event-time timestamps (as {@link PatientAdmissionSource} does).
+     *
+     * @param stream stream of AdmitEvent records
+     * @param lengthOfStaySampler decides how long each patient stays
+     * @return the same AdmitEvent records, annotated with a discharge side output
+     */
+    public static SingleOutputStreamOperator<AdmitEvent> attachPatientLifecycleSimulator(DataStream<AdmitEvent> stream, LengthOfStaySampler lengthOfStaySampler) {
+        return stream
+                .keyBy(admitEvent -> admitEvent.getPatient().getPatientID())
+                .process(new PatientLifecycleSimulator(lengthOfStaySampler))
+                .uid("patient-lifecycle-simulator")
+                .name("patient-lifecycle-simulator");
+    }
+
     // ---------------------------------------------------------------------------------------------
     // Window Functions
     // ---------------------------------------------------------------------------------------------

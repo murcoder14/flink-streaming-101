@@ -3,6 +3,7 @@
 #
 #   ./run.sh 1A     basic operators        ./run.sh 4A     timers
 #   ./run.sh 2A     aggregations           ./run.sh 5D     side outputs
+#   ./run.sh 2B     admits + discharges (timers, connect)
 #   ./run.sh 3B     state                  ./run.sh 6A     broadcast state
 #
 # The lessons never stop by themselves (the sensor stream is endless) - press Ctrl-C when you have seen enough.
@@ -11,7 +12,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 if [[ $# -ne 1 || ! "$1" =~ ^[1-5][A-Z]$ ]]; then
-  sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'
   exit 1
 fi
 

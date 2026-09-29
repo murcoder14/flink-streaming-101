@@ -1,11 +1,11 @@
 # Flink cluster in Docker for running the lessons as real Flink jobs and studying them in the Web UI.
-# Needs only Docker - no Kafka. The easiest way to use it is ./docker-run.sh <lesson number>; see the README section
+# Needs only Docker - no Kafka. The easiest way to use it is ./docker-run.sh <lesson id, e.g. 2B>; see the README section
 # "Studying a lesson in the Flink Web UI".
 #
-#   mvn clean package                                   # -> target/flink-basics-tutorial.jar
+#   mvn clean package                                   # -> target/flink-streaming-101.jar
 #   docker compose up -d                                # Flink UI: http://localhost:8081
 #   docker compose exec jobmanager flink run -d \
-#       -c com.example.flink.basics.Lesson3State /opt/jobs/flink-basics-tutorial.jar
+#       -c org.muralis.flink.launcher.Lesson2B /opt/jobs/flink-streaming-101.jar
 #   docker compose logs -f taskmanager                  # the print() output of the lessons appears here
 #   docker compose exec jobmanager flink list           # shows the job id
 #   docker compose exec jobmanager flink cancel <jobId> # stop it before starting the next lesson

@@ -21,7 +21,7 @@
         <lombok.version>1.18.38</lombok.version>
 
         <!-- 'provided' = the Flink cluster already contains these jars, so they are not packed into our jar.
-             The 'local' profile switches to 'compile' so the lessons can also run on your laptop (see run.sh). -->
+             The 'local' profile switches to 'compile' so the lessons can also run on your laptop (see README.md). -->
         <flink.scope>provided</flink.scope>
     </properties>
 
@@ -135,7 +135,7 @@
                 </executions>
             </plugin>
 
-            <!-- Used by run.sh. exec:exec starts a fresh JVM (exec:java does not work with Flink's mini-cluster). -->
+            <!-- Used to run lessons locally (see README.md). exec:exec starts a fresh JVM (exec:java does not work with Flink's mini-cluster). -->
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>

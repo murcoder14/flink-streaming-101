@@ -26,12 +26,12 @@ import java.time.Duration;
  *
  * <p>Run with:
  * <pre>
- *   ./run.sh 2A
+ *   mvn -q -B -Plocal compile exec:exec -Dexec.executable=java -Dexec.args="-cp %classpath org.muralis.flink.launcher.Lesson2A"
  * </pre>
  *
  * <p>Note: For rapid local testing without waiting a full 2 minutes, set the environment variable:
  * <pre>
- *   ADMISSION_WINDOW_SECONDS=10 ./run.sh 2A
+ *   ADMISSION_WINDOW_SECONDS=10 mvn -q -B -Plocal compile exec:exec -Dexec.executable=java -Dexec.args="-cp %classpath org.muralis.flink.launcher.Lesson2A"
  * </pre>
  */
 public class Lesson2A {

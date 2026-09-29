@@ -32,7 +32,7 @@ import org.muralis.flink.data.source.hospital.RegionLengthOfStaySampler;
  *
  * <p>Run with:
  * <pre>
- *   ./run.sh 2B
+ *   mvn -q -B -Plocal compile exec:exec -Dexec.executable=java -Dexec.args="-cp %classpath org.muralis.flink.launcher.Lesson2B"
  * </pre>
  *
  * <p>At the defaults, region S takes about 6.5 minutes to reach HIGH: its 100-bed capacity

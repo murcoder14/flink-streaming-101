@@ -21,7 +21,7 @@ import org.muralis.flink.data.source.temperature.SensorSource;
  *   keyBy    groups records by a key, so that all records with the same key are handled by the same parallel
  *            worker. Almost everything "stateful" (lessons 2-4) starts with keyBy.
  *
- * Run it:  ./run.sh 1        (stop with Ctrl-C)
+ * Run it locally as described in README.md (Lesson1D), or on the Docker cluster with ./docker-run.sh 1D. Stop with Ctrl-C.
  */
 public class Lesson1D {
 

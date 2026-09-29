@@ -59,7 +59,7 @@ public final class SensorSource {
      * Load knob for experiments. By default, the lessons run at 2 readings per second, which is so little that the
      * Flink UI shows an idle job (an empty flame graph, no backpressure). Setting the environment variable
      * SENSOR_RATE=<readings per second> before starting a lesson overrides the rate of ALL lessons, e.g.
-     * `SENSOR_RATE=5000 ./docker-run.sh 3`. Not set (or empty) means: use the lesson's own rate.
+     * `SENSOR_RATE=5000 ./docker-run.sh 1D`. Not set (or empty) means: use the lesson's own rate.
      */
     private static double rateOverride(double requested) {
         String override = System.getenv("SENSOR_RATE");
